@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api xmlns="http://ws.apache.org/ns/synapse" name="InquiryAPI" context="/services/training/v1.0/inquiry/code">
+  <resource methods="POST" uri-template="">
+    <inSequence>
+      <!-- Step 0: Extract input referenceCode & token -->
+      <property name="refCode" expression="json-eval($.referenceCode)" scope="default" type="STRING"/>
+      <property name="authToken" expression="get-property('transport','Authorization')" scope="default" type="STRING"/>
+      <!-- Step 1: Call /rbt/v1.0/id -->
+      <payloadFactory media-type="json">
+        <format>
+          { "id": "$1" }
+        </format>
+        <args>
+          <arg evaluator="xml" expression="get-property('refCode')"/>
+        </args>
+      </payloadFactory>
+      <header name="Authorization" scope="transport" expression="get-property('authToken')"/>
+      <call>
+        <endpoint>
+          <http method="post" uri-template="http://localhost:3000/rbt/v1.0/id"/>
+        </endpoint>
+      </call>
+      <!-- Step 1.1: if Step 1 succeeds -->
+      <filter source="$axis2:HTTP_SC" regex="200">
+        <then>
+          <!-- Extract code -->
+          <property name="code" expression="json-eval($.code)" scope="default" type="STRING"/>
+          <!-- Step 2: Set Authorization header for Step 2 -->
+          <property name="step2Auth" value="01" scope="default"/>
+          <!-- Step 2: Call /rbt/v1.0/code -->
+          <payloadFactory media-type="json">
+            <format>
+              {
+              "code": "$1"
+              }
+            </format>
+            <args>
+              <arg evaluator="xml" expression="get-property('code')"/>
+            </args>
+          </payloadFactory>
+          <header name="Authorization" scope="transport" expression="get-property('step2Auth')"/>
+          <call>
+            <endpoint>
+              <http method="put" uri-template="http://localhost:3000/rbt/v1.0/code"/>
+            </endpoint>
+          </call>
+          <!-- Step 2.1: Check response -->
+          <filter source="$axis2:HTTP_SC" regex="200">
+            <then>
+              <respond/>
+            </then>
+            <else>
+              <payloadFactory media-type="json">
+                <format>
+                  {
+                  "error": "Invalid code or token"
+                  }
+                </format>
+              </payloadFactory>
+              <property name="HTTP_SC" value="422" scope="axis2"/>
+              <respond/>
+            </else>
+          </filter>
+        </then>
+        <!-- Step 1.1: If Step 1 fails -->
+        <else>
+          <payloadFactory media-type="json">
+            <format>{ "error": "Invalid referenceCode or token" }</format>
+          </payloadFactory>
+          <property name="HTTP_SC" value="422" scope="axis2"/>
+          <respond/>
+        </else>
+      </filter>
+    </inSequence>
+    <outSequence/>
+  </resource>
+</api>

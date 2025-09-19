@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api xmlns="http://ws.apache.org/ns/synapse" name="Task2API" context="/services/training/v1.0/task/2">
+  <resource methods="GET" uri-template="/">
+    <inSequence>
+      <!-- Build static XML response -->
+      <payloadFactory media-type="xml">
+        <format>
+          <data>
+            <firstName>david</firstName>
+            <lastName>johnson</lastName>
+          </data>
+        </format>
+      </payloadFactory>
+      <!-- Set response type -->
+      <property name="messageType" value="application/xml" scope="axis2"/>
+      <respond/>
+    </inSequence>
+  </resource>
+</api>

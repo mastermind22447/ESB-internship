@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api xmlns="http://ws.apache.org/ns/synapse" name="Task4API" context="/services/training/v1.0/task/4">
+    <resource methods="POST" uri-template="/">
+        <inSequence>
+            <!-- Extract first two ids from root array -->
+            <property name="first"  expression="json-eval($[0].id)" scope="default"/>
+            <property name="second" expression="json-eval($[1].id)" scope="default"/>
+
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                        "first":"$1",
+                        "second":"$2"
+                    }
+                </format>
+                <args>
+                    <arg expression="get-property('first')"/>
+                    <arg expression="get-property('second')"/>
+                </args>
+            </payloadFactory>
+            <property name="messageType" value="application/json" scope="axis2"/>
+            <respond/>
+        </inSequence>
+        <outSequence/>
+        <faultSequence/>
+    </resource>
+</api>

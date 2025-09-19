@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api xmlns="http://ws.apache.org/ns/synapse" name="Task10API" context="/services/training/v1.0/task/10">
+  <resource methods="POST" uri-template="">
+    <inSequence>
+      <!-- Extract title from incoming JSON -->
+      <property name="title" expression="json-eval($.title)" scope="default"/>
+      <!-- Call the real RBT categories service -->
+      <call>
+        <endpoint>
+          <http method="GET" uri-template="http://localhost:3000/rbt/v1.0/categories"/>
+        </endpoint>
+      </call>
+      <!-- Filter categories by title -->
+      <script language="js"><![CDATA[
+          var title = mc.getProperty("title");
+          var response = mc.getPayloadJSON();
+          var filtered = response.filter(function(c) {
+              return c.title === title;
+          });
+          mc.setPayloadJSON({ "categories": filtered });
+      ]]></script>
+      <!-- Set response type -->
+      <property name="messageType" value="application/json" scope="axis2"/>
+      <respond/>
+    </inSequence>
+    <outSequence/>
+    <faultSequence/>
+  </resource>
+</api>

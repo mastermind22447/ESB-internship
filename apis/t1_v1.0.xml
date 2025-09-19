@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api xmlns="http://ws.apache.org/ns/synapse" name="Task1API" context="/services/training/v1.0/task/1">
+  <resource methods="GET" uri-template="/">
+    <inSequence>
+      <!-- Build fixed JSON response -->
+      <payloadFactory media-type="json">
+        <format>
+          {
+          "id": "123456"
+          }
+        </format>
+      </payloadFactory>
+      <!-- Set response type -->
+      <property name="messageType" value="application/json" scope="axis2"/>
+      <respond/>
+    </inSequence>
+  </resource>
+</api>

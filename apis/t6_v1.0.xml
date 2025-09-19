@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api xmlns="http://ws.apache.org/ns/synapse" name="Task6API" context="/services/training/v1.0/task/6">
+    <resource methods="GET" uri-template="/{name}">
+        <inSequence>
+            <property name="name" expression="$url:name" scope="default"/>
+
+            <filter source="get-property('name')" regex="^(?i)henry$">
+                <then>
+                    <payloadFactory media-type="json">
+                        <format>
+                            { "fatherName":"john", "birthDate":"1995-05-06" }
+                        </format>
+                    </payloadFactory>
+                </then>
+                <else>
+                    <payloadFactory media-type="json">
+                        <format>
+                            { "fatherName":null, "birthDate":null }
+                        </format>
+                    </payloadFactory>
+                </else>
+            </filter>
+
+            <property name="messageType" value="application/json" scope="axis2"/>
+            <respond/>
+        </inSequence>
+        <outSequence/>
+        <faultSequence/>
+    </resource>
+</api>

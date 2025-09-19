@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api xmlns="http://ws.apache.org/ns/synapse" name="Task7API" context="/services/training/v1.0/task/7">
+    <resource methods="PUT" uri-template="/">
+        <inSequence>
+            <property name="clientNumber" expression="json-eval($.clientNumber)" scope="default"/>
+
+            <switch source="get-property('clientNumber')">
+                <case regex="^11$">
+                    <payloadFactory media-type="json">
+                        <format>
+                            {
+                                "id":"7260aeee-7c31-450f-8453-d89887a86d9a",
+                                "createdts":"2020-05-11T20:58:34.427Z",
+                                "creator":"fa9b5a08-a41d-4173-92a3-b204ccfd255f",
+                                "grants":[ "client_credentials" ],
+                                "status":"ACTIVE"
+                            }
+                        </format>
+                    </payloadFactory>
+                </case>
+
+                <case regex="^22$">
+                    <payloadFactory media-type="json">
+                        <format>
+                            {
+                                "id":"fa9b5a08-a41d-4173-92a3-b204ccfd255f",
+                                "createdts":"2022-08-19T12:17:35.258Z",
+                                "grants":[ "client_credentials" ],
+                                "status":"INACTIVE"
+                            }
+                        </format>
+                    </payloadFactory>
+                </case>
+
+                <case regex="^33$">
+                    <payloadFactory media-type="json">
+                        <format>
+                            {
+                                "id":"75ce206c-e9af-4216-a527-49250dd4ceb5",
+                                "createdts":"2022-05-01T13:17:35.258Z",
+                                "grants":[ "client_credentials" ],
+                                "status":"INACTIVE"
+                            }
+                        </format>
+                    </payloadFactory>
+                </case>
+
+                <default>
+                    <payloadFactory media-type="json">
+                        <format>{ "status":"not found" }</format>
+                    </payloadFactory>
+                    <property name="HTTP_SC" value="404" scope="axis2"/>
+                </default>
+            </switch>
+
+            <property name="messageType" value="application/json" scope="axis2"/>
+            <respond/>
+        </inSequence>
+        <outSequence/>
+        <faultSequence/>
+    </resource>
+</api>

@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api xmlns="http://ws.apache.org/ns/synapse" name="TrainingBillAPI" context="/training/v1.0/bill">
+  <resource methods="PUT" uri-template="">
+    <inSequence>
+      <!-- ================= Step 0: Capture incoming Authorization ================= -->
+      <property name="authToken" expression="get-property('transport','Authorization')" scope="default" type="STRING"/>
+      <filter xpath="get-property('authToken') = 'test_token'">
+        <then/>
+        <else>
+          <payloadFactory media-type="json">
+            <format>{ "errorMessage": "invalid authorization" }</format>
+          </payloadFactory>
+          <property name="HTTP_SC" value="401" scope="axis2"/>
+          <respond/>
+        </else>
+      </filter>
+      <!-- ================= Step 1: Log incoming request ================= -->
+      <log level="full">
+        <property name="INFO" value="TrainingBillAPI PUT resource hit"/>
+        <property name="payload" expression="$body"/>
+        <property name="authToken" expression="get-property('authToken')"/>
+      </log>
+      <!-- ================= Step 2: Validate billId ================= -->
+      <property name="billId" expression="json-eval($.billId)" scope="default" type="STRING"/>
+      <filter xpath="string-length(get-property('billId')) = 10 and not(starts-with(get-property('billId'),'0') or starts-with(get-property('billId'),'1') or starts-with(get-property('billId'),'2'))">
+        <then/>
+        <else>
+          <payloadFactory media-type="json">
+            <format>{ "error": "Invalid billId" }</format>
+          </payloadFactory>
+          <property name="HTTP_SC" value="400" scope="axis2"/>
+          <respond/>
+        </else>
+      </filter>
+      <!-- ================= Step 3: Call backend bill service ================= -->
+      <call>
+        <endpoint>
+          <http method="GET" uri-template="http://localhost:3000/bill/v1.0/{billId}"/>
+        </endpoint>
+      </call>
+      <!-- ================= Step 3.1: Check backend response ================= -->
+      <filter xpath="get-property('HTTP_SC') = 200">
+        <then/>
+        <else>
+          <filter xpath="get-property('HTTP_SC') = 404">
+            <then>
+              <payloadFactory media-type="json">
+                <format>{ "errorMessage": "invalid billId" }</format>
+              </payloadFactory>
+              <property name="HTTP_SC" value="400" scope="axis2"/>
+              <respond/>
+            </then>
+            <else>
+              <payloadFactory media-type="json">
+                <format>{ "errorMessage": "backend error" }</format>
+              </payloadFactory>
+              <property name="HTTP_SC" value="500" scope="axis2"/>
+              <respond/>
+            </else>
+          </filter>
+        </else>
+      </filter>
+      <!-- ================= Step 4: Iterate over bills ================= -->
+      <iterate expression="json-eval($)" sequential="true" id="billIter">
+        <target>
+          <sequence>
+            <property name="subId" expression="$body/subId"/>
+            <property name="cycleId" expression="$body/cycleId"/>
+            <property name="amount" expression="json-eval($.amount)" scope="default"/>
+            <!-- Call cycle if cycleId > 140401 -->
+            <filter xpath="number(get-property('cycleId')) > 140401">
+              <then>
+                <call>
+                  <endpoint>
+                    <http method="GET" uri-template="http://localhost:3000/bill/v1.0/cycle/{cycleId}"/>
+                  </endpoint>
+                </call>
+                <filter xpath="get-property('HTTP_SC') = 200">
+                  <then>
+                    <property name="amount" expression="json-eval($.amount)"/>
+                  </then>
+                  <else>
+                    <property name="amount" value="null"/>
+                  </else>
+                </filter>
+              </then>
+            </filter>
+            <!-- Update cycle -->
+            <payloadFactory media-type="json">
+              <format>{ "amount": "$1" }</format>
+              <args>
+                <arg expression="get-property('amount')"/>
+              </args>
+            </payloadFactory>
+            <call>
+              <endpoint>
+                <http method="PUT" uri-template="http://localhost:3000/bill/v1.0/cycle/{cycleId}"/>
+              </endpoint>
+            </call>
+            <!-- Update bill -->
+            <payloadFactory media-type="json">
+              <format>{ "subId": "$1" }</format>
+              <args>
+                <arg expression="get-property('subId')"/>
+              </args>
+            </payloadFactory>
+            <call>
+              <endpoint>
+                <http method="PUT" uri-template="http://localhost:3000/bill/v1.0/"/>
+              </endpoint>
+            </call>
+            <!-- Build result object -->
+            <payloadFactory media-type="json">
+              <format>{ "subId": "$1", "cycleId": "$2", "amount": "$3" }</format>
+              <args>
+                <arg expression="get-property('subId')"/>
+                <arg expression="get-property('cycleId')"/>
+                <arg expression="get-property('amount')"/>
+              </args>
+            </payloadFactory>
+          </sequence>
+        </target>
+      </iterate>
+      <!-- ================= Step 5: Aggregate results ================= -->
+      <aggregate>
+        <completeCondition>
+          <messageCount min="-1" max="-1"/>
+        </completeCondition>
+        <onComplete expression="$body">
+          <!-- Sort by subId -->
+          <script language="js"><![CDATA[
+            var payload = mc.getPayloadJSON();
+            if(Array.isArray(payload)){
+                payload.sort(function(a,b){ return parseInt(a.subId) - parseInt(b.subId); });
+            }
+            mc.setPayloadJSON(payload);
+          ]]></script>
+          <log level="full">
+            <property name="INFO" value="Final sorted response"/>
+            <property name="payload" expression="$body"/>
+          </log>
+          <respond/>
+        </onComplete>
+      </aggregate>
+    </inSequence>
+    <outSequence/>
+    <faultSequence/>
+  </resource>
+</api>

@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api xmlns="http://ws.apache.org/ns/synapse" name="CustomerRBTAPI" context="/services/customer/v1.0/rbt">
+  <resource methods="POST" uri-template="/{categoryId}/{toneId}">
+    <inSequence>
+      <!-- Step 0: Extract URI variables and client header -->
+      <property name="categoryId" expression="get-property('uri.var.categoryId')" scope="default"/>
+      <property name="toneId" expression="get-property('uri.var.toneId')" scope="default"/>
+      <property name="clientHeader" expression="get-property('transport','client')" scope="default"/>
+      <!-- Step 0.1: Extract mobile number and remove leading 0 -->
+      <script language="js"><![CDATA[
+                var payload = mc.getPayloadJSON();
+                var mobile = payload.mobile || "";
+                if (mobile.startsWith("0")) mobile = mobile.substring(1);
+                mc.setProperty("mobileNumber", mobile);
+            ]]></script>
+      <!-- Step 1: Call tones inquiry -->
+      <call>
+        <endpoint>
+          <http method="GET" uri-template="http://localhost:3000/rbt/v1.0/tones/{uri.var.categoryId}"/>
+        </endpoint>
+      </call>
+      <!-- Step 2: Check empty response -->
+      <filter source="json-eval($)" regex="^\s*\[\s*\]\s*$">
+        <then>
+          <payloadFactory media-type="json">
+            <format>{"errorCode":"400","errorMessage":"tone not available"}</format>
+          </payloadFactory>
+          <property name="HTTP_SC" value="400" scope="axis2" type="STRING"/>
+          <respond/>
+        </then>
+      </filter>
+      <!-- Step 3: Find selected tone -->
+      <script language="js"><![CDATA[
+                var tones = mc.getPayloadJSON();
+                var toneId = mc.getProperty("toneId");
+                var selectedTone = null;
+                for (var i = 0; i < tones.length; i++) {
+                    if (tones[i].id === toneId) {
+                        selectedTone = tones[i];
+                        break;
+                    }
+                }
+
+                if (!selectedTone) {
+                    mc.setProperty("toneNotFound", true);
+                } else if (selectedTone.status === "INACTIVE") {
+                    mc.setProperty("toneInactive", true);
+                } else {
+                    mc.setProperty("selectedToneAmount", selectedTone.amount);
+                }
+            ]]></script>
+      <!-- Step 3.1: Tone not found -->
+      <filter source="get-property('toneNotFound')" regex="true">
+        <then>
+          <payloadFactory media-type="json">
+            <format>{"errorCode":"404","errorMessage":"tone not found"}</format>
+          </payloadFactory>
+          <property name="HTTP_SC" value="404" scope="axis2" type="STRING"/>
+          <respond/>
+        </then>
+      </filter>
+      <!-- Step 3.2: Tone inactive -->
+      <filter source="get-property('toneInactive')" regex="true">
+        <then>
+          <payloadFactory media-type="json">
+            <format>{"errorCode":"400","errorMessage":"tone is inactive"}</format>
+          </payloadFactory>
+          <property name="HTTP_SC" value="400" scope="axis2" type="STRING"/>
+          <respond/>
+        </then>
+      </filter>
+      <!-- Step 4: Prepare activation payload -->
+      <payloadFactory media-type="json">
+        <format>{"amount":"$1","mobileNumber":"$2"}</format>
+        <args>
+          <arg expression="get-property('selectedToneAmount')"/>
+          <arg expression="get-property('mobileNumber')"/>
+        </args>
+      </payloadFactory>
+      <property name="messageType" value="application/json" scope="axis2"/>
+      <property name="HTTP_HEADERS" scope="axis2" type="OM">
+        <headers xmlns="">
+          <header name="client" value="$ctx:clientHeader"/>
+        </headers>
+      </property>
+      <call>
+        <endpoint>
+          <http method="POST" uri-template="http://localhost:3000/rbt/v1.0/activate/tone/{uri.var.categoryId}?toneId={uri.var.toneId}"/>
+        </endpoint>
+      </call>
+      <!-- Step 5 & 6: Handle activation response -->
+      <filter source="json-eval($.code)" regex="200">
+        <then>
+          <payloadFactory media-type="json">
+            <format>{"result":"200","message":"activated"}</format>
+          </payloadFactory>
+          <property name="HTTP_SC" value="200" scope="axis2" type="STRING"/>
+        </then>
+        <else>
+          <payloadFactory media-type="json">
+            <format>{"errorCode":"$1","errorMessage":"$2"}</format>
+            <args>
+              <arg evaluator="json" expression="$.code"/>
+              <arg evaluator="json" expression="$.message"/>
+            </args>
+          </payloadFactory>
+          <property name="HTTP_SC" value="400" scope="axis2" type="STRING"/>
+        </else>
+      </filter>
+      <respond/>
+    </inSequence>
+  </resource>
+</api>

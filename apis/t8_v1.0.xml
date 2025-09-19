@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api xmlns="http://ws.apache.org/ns/synapse" name="Task8API" context="/services/training/v1.0/task/8">
+   <resource methods="GET" uri-template="/">
+      <inSequence>
+         <!-- Call the external RBT categories service -->
+         <call>
+            <endpoint>
+               <http method="GET" uri-template="http://localhost:3000/rbt/v1.0/categories"/>
+            </endpoint>
+         </call>
+         <!-- Wrap the response in 'categories' JSON object -->
+         <payloadFactory media-type="json">
+            <format>
+               {
+               "categories": $1
+               }
+            </format>
+            <args>
+               <arg evaluator="json" expression="$."/>
+            </args>
+         </payloadFactory>
+         <!-- Set response type to JSON -->
+         <property name="messageType" value="application/json" scope="axis2"/>
+         <respond/>
+      </inSequence>
+      <outSequence/>
+      <faultSequence/>
+   </resource>
+</api>

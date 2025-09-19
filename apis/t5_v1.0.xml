@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api xmlns="http://ws.apache.org/ns/synapse" name="Task5API" context="/services/training/v1.0/task/5">
+    <resource methods="POST" uri-template="/">
+        <inSequence>
+            <!-- Extract from XML body -->
+            <property name="firstName"    expression="//data/firstName/text()"    scope="default"/>
+            <property name="lastName"     expression="//data/lastName/text()"     scope="default"/>
+            <property name="mobileNumber" expression="//data/mobileNumber/text()" scope="default"/>
+            <property name="date"         expression="//data/date/text()"         scope="default"/>
+            <property name="time"         expression="//data/time/text()"         scope="default"/>
+
+            <!-- Remove leading 0 from mobile -->
+            <property name="mobileTrimmed" expression="substring(get-property('mobileNumber'),2)" scope="default"/>
+
+            <!-- Build YYYYMMDDTHHMMSS -->
+            <script language="js"><![CDATA[
+                var d = mc.getProperty("date") || "";
+                var t = mc.getProperty("time") || "";
+                var out = d.replace(/-/g,"") + "T" + t.replace(/:/g,"");
+                mc.setProperty("formattedDateTime", out);
+            ]]></script>
+
+            <!-- XML response without the Synapse namespace -->
+            <payloadFactory media-type="xml">
+                <format>
+                    <data xmlns="">
+                        <fullName>$1 $2</fullName>
+                        <mobile>$3</mobile>
+                        <date>$4</date>
+                    </data>
+                </format>
+                <args>
+                    <arg expression="get-property('firstName')"/>
+                    <arg expression="get-property('lastName')"/>
+                    <arg expression="get-property('mobileTrimmed')"/>
+                    <arg expression="get-property('formattedDateTime')"/>
+                </args>
+            </payloadFactory>
+            <respond/>
+        </inSequence>
+        <outSequence/>
+        <faultSequence/>
+    </resource>
+</api>
