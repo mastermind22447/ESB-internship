@@ -9,7 +9,7 @@
          <call>
             <endpoint>
                <http method="GET"
-                     uri-template="http://localhost:8290/mock/category/{categoryId}"/>
+                     uri-template="http://localhost:3000/rbt/v1.0/category/{categoryId}"/>
             </endpoint>
          </call>
          <filter source="$body/code" regex=".*">
