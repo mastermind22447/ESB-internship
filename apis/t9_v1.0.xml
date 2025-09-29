@@ -1,49 +1,53 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<api xmlns="http://ws.apache.org/ns/synapse"
-     name="Task9API"
-     context="/services/training/v1.0/task/9"
-     binds-to="default">
-   <resource methods="GET" binds-to="default" uri-template="/{categoryId}">
-      <inSequence>
-         <property name="categoryId" expression="$url:categoryId" scope="default"/>
-         <call>
-            <endpoint>
-               <http method="GET"
-                     uri-template="http://localhost:3000/rbt/v1.0/category/{categoryId}"/>
-            </endpoint>
-         </call>
-         <filter source="$body/code" regex=".*">
-            <then>
-               <payloadFactory media-type="json">
-                  <format>
-              {
-              "errorCode": "$1",
-              "errorMessage": "$2"
-              }
-            </format>
-                  <args>
-                     <arg evaluator="xml" expression="$body/code"/>
-                     <arg evaluator="xml" expression="$body/message"/>
-                  </args>
-               </payloadFactory>
-               <property name="HTTP_SC" value="404" scope="axis2"/>
-            </then>
-            <else>
-               <payloadFactory media-type="json">
-                  <format>
-              {
-              "category": $1
-              }
-            </format>
-                  <args>
-                     <arg evaluator="xml" expression="$body"/>
-                  </args>
-               </payloadFactory>
-               <property name="HTTP_SC" value="200" scope="axis2"/>
-            </else>
-         </filter>
-         <property name="messageType" value="application/json" scope="axis2"/>
-         <respond/>
-      </inSequence>
-   </resource>
+<api xmlns="http://ws.apache.org/ns/synapse" name="Task9API" context="/services/training/v1.0/task/9">
+  <resource methods="GET" uri-template="/{categoryId}">
+    <inSequence>
+      <!-- Extract categoryId from URL -->
+      <property name="categoryId" expression="get-property('uri.var.categoryId')" scope="default" type="STRING"/>
+      <log level="custom">
+        <property name="DEBUG_categoryId" expression="get-property('categoryId')"/>
+      </log>
+      <!-- Force JSON message type -->
+      <property name="messageType" value="application/json" scope="axis2"/>
+      <property name="ContentType" value="application/json" scope="axis2"/>
+      <!-- Call the external category service -->
+      <call>
+        <endpoint>
+          <http method="GET" uri-template="http://localhost:3000/rbt/v1.0/category/{uri.var.categoryId}"/>
+        </endpoint>
+      </call>
+      <!-- Log backend response -->
+      <log level="full"/>
+      <!-- Check backend HTTP status -->
+      <filter source="json-eval($.category)" regex=".*">
+        <then>
+          <!-- Success: wrap backend response -->
+          <payloadFactory media-type="json">
+            <format>{"category": $1}</format>
+            <args>
+              <arg evaluator="json" expression="json-eval($)"/>
+            </args>
+          </payloadFactory>
+        </then>
+        <else>
+          <!-- Failure: map code & message -->
+          <payloadFactory media-type="json">
+            <format>{"errorCode": "$1", "errorMessage": "$2"}</format>
+            <args>
+              <arg evaluator="json" expression="json-eval($.code)"/>
+              <arg evaluator="json" expression="json-eval($.message)"/>
+            </args>
+          </payloadFactory>
+        </else>
+      </filter>
+      <!-- Respond back to client -->
+      <respond/>
+    </inSequence>
+    <outSequence/>
+    <faultSequence>
+      <log level="full"/>
+      <property name="HTTP_SC" value="500" scope="axis2"/>
+      <respond/>
+    </faultSequence>
+  </resource>
 </api>
