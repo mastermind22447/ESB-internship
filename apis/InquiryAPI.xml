@@ -1,68 +1,90 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <api xmlns="http://ws.apache.org/ns/synapse" name="InquiryAPI" context="/services/training/v1.0/inquiry/code">
-  <resource methods="POST" uri-template="">
+  <resource methods="POST" uri-template="/">
     <inSequence>
-      <!-- Step 0: Extract input referenceCode & token -->
+      <!-- Step 0: Extract input referenceCode & Authorization header -->
       <property name="refCode" expression="json-eval($.referenceCode)" scope="default" type="STRING"/>
       <property name="authToken" expression="get-property('transport','Authorization')" scope="default" type="STRING"/>
-      <!-- Step 1: Call /rbt/v1.0/id -->
+      <!-- Log extracted values -->
+      <log level="custom">
+        <property name="Step0_refCode" expression="get-property('refCode')"/>
+        <property name="AuthToken_Extracted" expression="get-property('authToken')"/>
+      </log>
+      <!-- Step 1: Prepare payload for POST /rbt/v1.0/id -->
       <payloadFactory media-type="json">
-        <format>
-          { "id": "$1" }
-        </format>
+        <format>{ "id": "$1" }</format>
         <args>
-          <arg evaluator="xml" expression="get-property('refCode')"/>
+          <arg expression="get-property('refCode')"/>
         </args>
       </payloadFactory>
+      <!-- Set Authorization header for Step 1 -->
       <header name="Authorization" scope="transport" expression="get-property('authToken')"/>
-      <call>
+      <log level="full">
+        <property name="Step1_Request" value="Calling /rbt/v1.0/id"/>
+        <property name="Step1_Payload" expression="get-property('refCode')"/>
+        <property name="Step1_AuthHeader" expression="get-property('authToken')"/>
+      </log>
+      <!-- Step 1: Call POST /rbt/v1.0/id -->
+      <call blocking="true">
         <endpoint>
-          <http method="post" uri-template="http://localhost:3000/rbt/v1.0/id"/>
+          <http method="POST" uri-template="http://localhost:3000/rbt/v1.0/id"/>
         </endpoint>
       </call>
-      <!-- Step 1.1: if Step 1 succeeds -->
-      <filter source="$axis2:HTTP_SC" regex="200">
+      <!-- Step 1: Store response -->
+      <property name="Step1_HTTPStatus" expression="get-property('axis2','HTTP_SC')" scope="default"/>
+      <property name="Step1_ResponseBody" expression="json-eval($)" scope="default"/>
+      <log level="full">
+        <property name="Step1_HTTPStatus" expression="get-property('Step1_HTTPStatus')"/>
+        <property name="Step1_ResponseBody" expression="get-property('Step1_ResponseBody')"/>
+      </log>
+      <!-- Step 1.1: Check HTTP 200 -->
+      <filter source="get-property('Step1_HTTPStatus')" regex="200">
         <then>
           <!-- Extract code -->
-          <property name="code" expression="json-eval($.code)" scope="default" type="STRING"/>
-          <!-- Step 2: Set Authorization header for Step 2 -->
-          <property name="step2Auth" value="01" scope="default"/>
-          <!-- Step 2: Call /rbt/v1.0/code -->
+          <property name="extractedCode" expression="json-eval($.code)" scope="default" type="STRING"/>
+          <log level="custom">
+            <property name="Step1_ExtractedCode" expression="get-property('extractedCode')"/>
+          </log>
+          <!-- Step 2: Prepare payload for PUT /rbt/v1.0/code -->
           <payloadFactory media-type="json">
-            <format>
-              {
-              "code": "$1"
-              }
-            </format>
+            <format>{ "code": "$1" }</format>
             <args>
-              <arg evaluator="xml" expression="get-property('code')"/>
+              <arg expression="get-property('extractedCode')"/>
             </args>
           </payloadFactory>
-          <header name="Authorization" scope="transport" expression="get-property('step2Auth')"/>
-          <call>
+          <!-- Set Authorization header for Step 2 -->
+          <header name="Authorization" scope="transport" expression="get-property('authToken')"/>
+          <log level="full">
+            <property name="Step2_Request" value="Calling /rbt/v1.0/code"/>
+            <property name="Step2_Code" expression="get-property('extractedCode')"/>
+            <property name="Step2_AuthHeader" expression="get-property('authToken')"/>
+          </log>
+          <!-- Step 2: Call PUT /rbt/v1.0/code -->
+          <call blocking="true">
             <endpoint>
-              <http method="put" uri-template="http://localhost:3000/rbt/v1.0/code"/>
+              <http method="PUT" uri-template="http://localhost:3000/rbt/v1.0/code"/>
             </endpoint>
           </call>
-          <!-- Step 2.1: Check response -->
-          <filter source="$axis2:HTTP_SC" regex="200">
+          <!-- Step 2: Store response -->
+          <property name="Step2_HTTPStatus" expression="get-property('axis2','HTTP_SC')" scope="default"/>
+          <property name="Step2_ResponseBody" expression="json-eval($)" scope="default"/>
+          <log level="full">
+            <property name="Step2_HTTPStatus" expression="get-property('Step2_HTTPStatus')"/>
+            <property name="Step2_ResponseBody" expression="get-property('Step2_ResponseBody')"/>
+          </log>
+          <!-- Step 2.1: Check HTTP 200 -->
+          <filter source="get-property('Step2_HTTPStatus')" regex="200">
             <then>
               <respond/>
             </then>
             <else>
               <payloadFactory media-type="json">
-                <format>
-                  {
-                  "error": "Invalid code or token"
-                  }
-                </format>
+                <format>{ "error": "Invalid code or token" }</format>
               </payloadFactory>
               <property name="HTTP_SC" value="422" scope="axis2"/>
               <respond/>
             </else>
           </filter>
         </then>
-        <!-- Step 1.1: If Step 1 fails -->
         <else>
           <payloadFactory media-type="json">
             <format>{ "error": "Invalid referenceCode or token" }</format>
@@ -75,3 +97,4 @@
     <outSequence/>
   </resource>
 </api>
+
