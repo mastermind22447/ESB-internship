@@ -1,0 +1,16 @@
+<endpoint name="RbtIDEndpoint" xmlns="http://ws.apache.org/ns/synapse">
+  <address uri="http://localhost:3000/rbt/v1.0/id">
+    <suspendOnFailure>
+      <errorCodes>-1</errorCodes> <!-- suspend on any error -->
+      <initialDuration>5000</initialDuration> <!-- 5s -->
+      <progressionFactor>2.0</progressionFactor>
+      <maximumDuration>30000</maximumDuration> <!-- 30s -->
+    </suspendOnFailure>
+    <markForSuspension>
+      <errorCodes>-1</errorCodes>
+    </markForSuspension>
+    <retryConfig>
+      <enabledErrorCodes>-1</enabledErrorCodes> <!-- retry on all errors -->
+    </retryConfig>
+  </address>
+</endpoint>

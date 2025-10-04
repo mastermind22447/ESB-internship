@@ -1,0 +1,27 @@
+<sequence xmlns="http://ws.apache.org/ns/synapse" name="AggregateResponseSeq">
+  <log level="custom">
+    <property name="Step" value="Aggregation Started"/>
+  </log>
+  <!-- Initialize arrays -->
+  <property name="successes" value="[]" scope="default"/>
+  <property name="errors" value="[]" scope="default"/>
+  <!-- Example: log each aggregated payload -->
+  <log level="full">
+    <property name="Step" value="Aggregated Message"/>
+    <property name="Payload" expression="json-eval($.)"/>
+  </log>
+  <!-- Build final response -->
+  <payloadFactory media-type="json">
+    <format>
+      {
+      "successes": $1,
+      "errors": $2
+      }
+    </format>
+    <args>
+      <arg evaluator="json" expression="get-property('successes')"/>
+      <arg evaluator="json" expression="get-property('errors')"/>
+    </args>
+  </payloadFactory>
+  <respond/>
+</sequence>

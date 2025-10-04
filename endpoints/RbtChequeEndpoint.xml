@@ -1,0 +1,7 @@
+<endpoint name="RbtChequeEndpoint" xmlns="http://ws.apache.org/ns/synapse">
+  <address uri="http://localhost:3000/rbt/v1.0/cheque">
+    <retryConfig>
+      <disabledErrorCodes>-1</disabledErrorCodes>
+    </retryConfig>
+  </address>
+</endpoint>

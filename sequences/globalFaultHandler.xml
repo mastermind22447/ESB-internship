@@ -1,0 +1,12 @@
+<sequence xmlns="http://ws.apache.org/ns/synapse" name="globalFaultHandler">
+  <log level="custom">
+    <property name="Step" value="Global fault triggered"/>
+    <property name="ErrorCode" expression="get-property('ERROR_CODE')"/>
+    <property name="ErrorMessage" expression="get-property('ERROR_MESSAGE')"/>
+  </log>
+  <property name="HTTP_SC" value="422" scope="axis2"/>
+  <payloadFactory media-type="json">
+    <format>{ "error": "Invalid code or token" }</format>
+  </payloadFactory>
+  <respond/>
+</sequence>

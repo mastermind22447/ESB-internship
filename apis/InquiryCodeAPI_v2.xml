@@ -1,105 +1,114 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<api xmlns="http://ws.apache.org/ns/synapse"
-     name="InquiryCodeAPI_v2"
-     context="/services/training/v1.0/inquiry/code/v2"
-     binds-to="default">
-   <resource methods="POST" binds-to="default">
-      <inSequence><!-- Step 0: Extract first reference code and Authorization header -->
-         <property name="inputId"
-                   expression="json-eval($.referenceCode[0])"
-                   scope="default"
-                   type="STRING"/>
-         <property name="authHeader"
-                   expression="get-property('transport','Authorization')"
-                   scope="default"
-                   type="STRING"/>
-         <!-- Log incoming Authorization header -->
+<api xmlns="http://ws.apache.org/ns/synapse" name="InquiryCodeAPI_v2" context="/services/training/v1.0/inquiry/code/v2">
+   <resource methods="POST" url-mapping="/">
+      <inSequence>
+         <!-- Log request -->
          <log level="custom">
-            <property name="IncomingAuthHeader" expression="get-property('authHeader')"/>
+            <property name="Step" value="API received request"/>
+            <property name="Payload" expression="json-eval($.)"/>
          </log>
-         <!-- Step 1: Prepare JSON body for POST /rbt/v1.0/id -->
-         <payloadFactory media-type="json">
-            <format>{"id": "$1"}</format>
-            <args>
-               <arg evaluator="xml" expression="get-property('inputId')"/>
-            </args>
-         </payloadFactory>
-         <!-- Copy Authorization header to outgoing request -->
-         <property name="authHeader"
-                   expression="get-property('transport','authorization')"
-                   scope="default"
-                   type="STRING"/>
-         <property name="ContentType" value="application/json" scope="transport"/>
-         <property name="messageType" value="application/json" scope="axis2"/>
-         <!-- Step 1: Call POST /rbt/v1.0/id and store response in body -->
-         <log level="full"/>
-         <call>
-            <endpoint>
-               <http method="POST" uri-template="http://localhost:3000/rbt/v1.0/id"/>
-            </endpoint>
-            <source type="body"/>
-         </call>
-         <!-- Log Step1 response -->
-         <log level="custom">
-            <property name="Step1ResponsePayload" expression="get-property('body')"/>
-            <property name="Step1HTTPStatus" expression="get-property('HTTP_SC')"/>
-         </log>
-         <!-- Step 1: Check if HTTP 200 -->
-         <filter xpath="get-property('HTTP_SC') = '200'">
-            <then><!-- Extract 'code' from Step1 response -->
-               <property name="codeFromStep1"
-                         expression="json-eval($.code)"
-                         scope="default"
-                         type="STRING"/>
-               <!-- Step 2: Prepare JSON body for PUT /rbt/v1.0/code -->
+         <!-- Iterate referenceCode array -->
+         <iterate continueParent="true" expression="json-eval($.referenceCode)" sequential="true" id="RefIterator">
+            <target>
+               <sequence>
+                  <!-- Extract just the number -->
+                  <property name="currentRef" expression="json-eval($.)" scope="default" type="STRING"/>
+                  <log level="custom">
+                     <property name="Step" value="Iterating each referenceCode"/>
+                     <property name="CurrentRef" expression="get-property('currentRef')"/>
+                  </log>
+                  <!-- ============================
+     1) POST /rbt/v1.0/id
+============================== -->
+                  <payloadFactory media-type="json">
+                     <format>{ "id": "$1" }</format>
+                     <args>
+                        <arg expression="get-property('currentRef')"/>
+                     </args>
+                  </payloadFactory>
+                  <property name="messageType" value="application/json" scope="axis2"/>
+                  <header name="Authorization" scope="transport" action="set" value="1"/>
+                  <log level="custom">
+                     <property name="DEBUG_AUTH_HEADER" expression="get-property('transport','Authorization')"/>
+                     <property name="Step" value="Calling /id endpoint"/>
+                     <property name="PayloadGoingToID" expression="json-eval($.)"/>
+                  </log>
+                  <call blocking="true">
+                     <endpoint key="RbtIDEndpoint"/>
+                  </call>
+                  <log level="custom">
+                     <property name="Step" value="Response from /id endpoint"/>
+                     <property name="ResponseFromID" expression="json-eval($.)"/>
+                  </log>
+                  <!-- Extract code from ID response -->
+                  <property name="idResponseCode" expression="json-eval($.code)" scope="default" type="STRING"/>
+                  <log level="custom">
+                     <property name="ExtractedCode" expression="get-property('idResponseCode')"/>
+                  </log>
+                  <!-- ============================2) PUT /rbt/v1.0/code============================== -->
+                  <payloadFactory media-type="json">
+                     <format>{ "code": "$1" }</format>
+                     <args>
+                        <arg expression="get-property('idResponseCode')"/>
+                     </args>
+                  </payloadFactory>
+                  <property name="messageType" value="application/json" scope="axis2"/>
+                  <header name="Authorization" scope="transport" action="set" value="1"/>
+                  <property name="HTTP_METHOD" value="PUT" scope="axis2"/>
+                  <log level="custom">
+                     <property name="Step" value="Calling /code endpoint"/>
+                     <property name="PayloadGoingToCODE" expression="json-eval($.)"/>
+                  </log>
+                  <call blocking="true">
+                     <endpoint key="RbtCodeEndpoint"/>
+                  </call>
+                  <log level="custom">
+                     <property name="Step" value="Response from /code endpoint"/>
+                     <property name="ResponseFromCODE" expression="json-eval($.)"/>
+                  </log>
+                  <!-- ============================
+     3) POST /rbt/v1.0/cheque
+     ⚠️ Uses original ID again
+============================== -->
+                  <payloadFactory media-type="json">
+                     <format>{ "code": "$1" }</format>
+                     <args>
+                        <arg expression="get-property('currentRef')"/>
+                     </args>
+                  </payloadFactory>
+                  <property name="messageType" value="application/json" scope="axis2"/>
+                  <header name="Authorization" scope="transport" action="set" value="1"/>
+                  <property name="HTTP_METHOD" value="POST" scope="axis2"/>
+                  <log level="custom">
+                     <property name="Step" value="Calling /cheque endpoint"/>
+                     <property name="PayloadGoingToCHEQUE" expression="json-eval($.)"/>
+                  </log>
+                  <call blocking="true">
+                     <endpoint key="RbtChequeEndpoint"/>
+                  </call>
+                  <log level="custom">
+                     <property name="Step" value="Response from /cheque endpoint"/>
+                     <property name="ResponseFromCHEQUE" expression="json-eval($.)"/>
+                  </log>
+               </sequence>
+            </target>
+         </iterate>
+         <aggregate id="FinalAggregator">
+            <completeCondition>
+               <messageCount min="1" max="1000"/>
+            </completeCondition>
+            <onComplete expression="//jsonObject">
                <payloadFactory media-type="json">
-                  <format>{"code": "$1"}</format>
+                  <format>[ $1 ]</format>
                   <args>
-                     <arg evaluator="xml" expression="get-property('codeFromStep1')"/>
+                     <arg evaluator="xml" expression="//jsonObject"/>
                   </args>
                </payloadFactory>
-               <!-- Step 2: Call PUT /rbt/v1.0/code and store response in body -->
-               <call>
-                  <endpoint>
-                     <http method="PUT" uri-template="http://localhost:3000/rbt/v1.0/code"/>
-                  </endpoint>
-                  <source type="body"/>
-               </call>
-               <!-- Log Step2 response -->
-               <log level="custom">
-                  <property name="Step2ResponsePayload" expression="get-property('body')"/>
-                  <property name="Step2HTTPStatus" expression="get-property('HTTP_SC')"/>
-               </log>
-               <!-- Step 2: Check if HTTP 200 -->
-               <filter xpath="get-property('HTTP_SC') = '200'">
-                  <then>
-                     <payloadFactory media-type="json">
-                        <format>{"message":"successfully"}</format>
-                        <args/>
-                     </payloadFactory>
-                     <respond/>
-                  </then>
-                  <else>
-                     <payloadFactory media-type="json">
-                        <format>{"error":"Invalid code or token"}</format>
-                        <args/>
-                     </payloadFactory>
-                     <property name="HTTP_SC" value="422" scope="axis2"/>
-                     <respond/>
-                  </else>
-               </filter>
-            </then>
-            <else>
-               <payloadFactory media-type="json">
-                  <format>{"error":"Invalid referenceCode or token"}</format>
-                  <args/>
-               </payloadFactory>
-               <property name="HTTP_SC" value="422" scope="axis2"/>
                <respond/>
-            </else>
-         </filter>
+            </onComplete>
+         </aggregate>
       </inSequence>
-      <outSequence/>
-      <faultSequence/>
+      <outSequence>
+         <respond/>
+      </outSequence>
    </resource>
 </api>
